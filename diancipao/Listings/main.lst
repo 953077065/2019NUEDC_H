@@ -1,0 +1,277 @@
+C51 COMPILER V9.59.0.0   MAIN                                                              08/11/2019 04:16:06 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: d:\Keil_v5\C51\BIN\C51.EXE main.c LARGE OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listing
+                    -s\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <stc8.h>
+   2          #include <Lcd1602.h>
+   3          #include <keyboard.h>
+   4          #include <Dingyi.h>
+   5          #include <pwm.h>
+   6          #include <math.h>
+   7          
+   8          //距离控制   key10——s11
+   9          int CONFIGMODE=0; //自动设置模式  0-距离  1-角度 默认调整距离
+  10          //角度，key11——s12 
+  11          //发射  key12——s13
+  12          //双舵机控制，key13——s14 
+  13          //自动打靶，key14——s15 
+  14          int SYSMODE=0; //默认舵机手动调整模式 0——手动，1-自动，2-自动+ 3-DEBUG模式
+  15          int V=0;          //垂直舵机角度控制——P21
+  16          int H=0;          //水平舵机角度控制——P20
+  17          int D=0;          //发射距离 单位DM 默认0s
+  18          int DEBUG=0;      //debug模式手动调整舵机旋转角度 默认0 
+  19          int CUE=0;//当前修改的参数 0-D 1-H 2-V 默认0
+  20          sbit BEEP=P5^5;   //蜂鸣器   P55
+  21          sbit LAUNCH=P5^4; //发射    P56 低电平触发
+  22          
+  23          code uchar array1[] ="=WELCOME TO USE=";
+  24          code uchar array2[] ="   LOADING...   ";
+  25          code uchar ready[]  ="  READY ";
+  26          code uchar finish[] ="LAUNCH FINISHED!";
+  27          code uchar debugcode[]  ="TESTMODE";
+  28          void scanX();
+  29          void scanX2();
+  30          void Delay500ms()   //@24.000MHz
+  31          {
+  32   1        uchar i, j, k;
+  33   1        i = 61; j = 225;  k = 62;
+  34   1        do  {
+  35   2          do    {
+  36   3            while (--k);    } 
+  37   2          while (--j);  } 
+  38   1        while (--i);
+  39   1      }
+  40          void Delay100ms()   //@24.000MHz
+  41          {
+  42   1        unsigned char i, j, k;
+  43   1      
+  44   1        i = 13;
+  45   1        j = 45;
+  46   1        k = 214;
+  47   1        do
+  48   1        {
+  49   2          do
+  50   2          {
+  51   3            while (--k);
+  52   3          } while (--j);
+  53   2        } while (--i);
+  54   1      }
+C51 COMPILER V9.59.0.0   MAIN                                                              08/11/2019 04:16:06 PAGE 2   
+
+  55          
+  56          void fire(){  //发射按钮  
+  57   1        uchar i;
+  58   1        if(DEBUG){
+  59   2          LAUNCH=0;
+  60   2          delay_ms(150);
+  61   2          LAUNCH=1;
+  62   2          Lcd1602_Firstrow();
+  63   2          for(i=0;finish[i];i++)
+  64   2            Lcd1602_WriteDC(finish[i],1);
+  65   2          BEEP=0;
+  66   2          delay_ms(500);
+  67   2          BEEP=1;
+  68   2        }else{
+  69   2          if(SYSMODE==0){
+  70   3          
+  71   3          }else if(SYSMODE==1){
+  72   3            scanX();
+  73   3          }else if(SYSMODE==2){
+  74   3            scanX2();
+  75   3          }
+  76   2        }
+  77   1        return;
+  78   1      }
+  79          void numberKey(int i){
+  80   1        if(CUE==0){ //修改D的值
+  81   2          if(D>30) D=0;
+  82   2          if(D!=0) D=D*10+i;
+  83   2          else D=i;
+  84   2        }
+  85   1        if(CUE==1){ //修改H的值
+  86   2          if(H>30||H<-30) H=0;
+  87   2          if(H!=0) H=H*10+i;
+  88   2          else H=i;
+  89   2        }
+  90   1        if(CUE==2){ //修改V的值
+  91   2          if(V>60) V=0;
+  92   2          if(V!=0) V=V*10+i;
+  93   2          else V=i;
+  94   2        }
+  95   1      }
+  96          void key10(){
+  97   1        CUE=0;
+  98   1      }
+  99          void key11(){
+ 100   1        CUE=1;
+ 101   1      }
+ 102          void key12(){
+ 103   1        fire();
+ 104   1      }
+ 105          void key13(){
+ 106   1        CUE=2;
+ 107   1      }
+ 108          
+ 109          void key14(){ //修改工作模式
+ 110   1        if(SYSMODE==2) SYSMODE=0;
+ 111   1        else SYSMODE++;
+ 112   1      }
+ 113          void key15(){ //负号 只针对水平角度调节 
+ 114   1        if(CUE==1)  //当前修改的是H的值
+ 115   1          H*=-1;
+ 116   1        else DEBUG=!DEBUG;
+C51 COMPILER V9.59.0.0   MAIN                                                              08/11/2019 04:16:06 PAGE 3   
+
+ 117   1      }
+ 118          void scanX(){
+ 119   1        int i=-30;
+ 120   1        V=10;
+ 121   1        while(i<=28){
+ 122   2            Delay500ms();
+ 123   2            horizontal_change(i+=2);
+ 124   2        }
+ 125   1        //i=30;
+ 126   1        while(i>=-28){
+ 127   2          Delay500ms();
+ 128   2            horizontal_change(i-=2);
+ 129   2        }
+ 130   1        
+ 131   1      }
+ 132          void scanX2(){
+ 133   1        int i=-30;
+ 134   1        V=10;
+ 135   1        while(i<=28){
+ 136   2            Delay100ms();
+ 137   2            horizontal_change(i++);
+ 138   2        }
+ 139   1        while(i>=-28){
+ 140   2          Delay100ms();
+ 141   2            horizontal_change(i--);
+ 142   2        }
+ 143   1        
+ 144   1      }
+ 145          void main(void)
+ 146          {
+ 147   1        uchar i;
+ 148   1        V=0;          //垂直舵机角度控制——P21
+ 149   1        H=0;          //水平舵机角度控制——P20
+ 150   1        D=0;
+ 151   1        BEEP=1;
+ 152   1        LAUNCH=1;
+ 153   1        //pwm_init();
+ 154   1        Lcd1602_Init();
+ 155   1        
+ 156   1        for(i=0;array1[i];i++)
+ 157   1          Lcd1602_WriteDC(array1[i],1);
+ 158   1        Lcd1602_Secondrow();
+ 159   1        for(i=0;array2[i];i++)
+ 160   1          Lcd1602_WriteDC(array2[i],1);
+ 161   1        Delay500ms();
+ 162   1        
+ 163   1        
+ 164   1        while(1){
+ 165   2          
+ 166   2          Lcd1602_Firstrow();
+ 167   2          Lcd1602_WriteDC('M',1);
+ 168   2          Lcd1602_WriteDC('O',1);
+ 169   2          Lcd1602_WriteDC('D',1);
+ 170   2          Lcd1602_WriteDC('E',1);
+ 171   2          Lcd1602_WriteDC(':',1);
+ 172   2          if(SYSMODE==0) {Lcd1602_WriteDC('M',1);Lcd1602_WriteDC(' ',1);Lcd1602_WriteDC(' ',1);}
+ 173   2          else if(SYSMODE==1){Lcd1602_WriteDC('A',1);Lcd1602_WriteDC(' ',1);Lcd1602_WriteDC(' ',1);}
+ 174   2          else if(SYSMODE==2){Lcd1602_WriteDC('A',1);Lcd1602_WriteDC('+',1);Lcd1602_WriteDC(' ',1);}
+ 175   2          if(!DEBUG){
+ 176   3          for(i=0;ready[i];i++)
+ 177   3          Lcd1602_WriteDC(ready[i],1);
+ 178   3          }else{
+C51 COMPILER V9.59.0.0   MAIN                                                              08/11/2019 04:16:06 PAGE 4   
+
+ 179   3            for(i=0;debugcode[i];i++)
+ 180   3            Lcd1602_WriteDC(debugcode[i],1);
+ 181   3          }
+ 182   2          Lcd1602_Secondrow();
+ 183   2          Lcd1602_WriteDC('D',1);
+ 184   2          Lcd1602_WriteDC(':',1);
+ 185   2          Lcd1602_WriteDC(D/10+'0',1);
+ 186   2          Lcd1602_WriteDC(D%10+'0',1);
+ 187   2          Lcd1602_WriteDC(' ',1);
+ 188   2          Lcd1602_WriteDC('H',1);
+ 189   2          Lcd1602_WriteDC(':',1);
+ 190   2          if(H<0 && H>=-30){
+ 191   3            Lcd1602_WriteDC('-',1);
+ 192   3            Lcd1602_WriteDC(abs(H)/10+'0',1);
+ 193   3            Lcd1602_WriteDC(abs(H)%10+'0',1);
+ 194   3            Lcd1602_WriteDC(' ',1);
+ 195   3          }
+ 196   2          if(H>=0 && H<=30){
+ 197   3            Lcd1602_WriteDC('+',1);
+ 198   3            Lcd1602_WriteDC(H/10+'0',1);
+ 199   3            Lcd1602_WriteDC(H%10+'0',1);
+ 200   3            Lcd1602_WriteDC(' ',1);
+ 201   3          }
+ 202   2          Lcd1602_WriteDC('V',1);
+ 203   2          Lcd1602_WriteDC(':',1);
+ 204   2          Lcd1602_WriteDC(V/10+'0',1);
+ 205   2          Lcd1602_WriteDC(V%10+'0',1);
+ 206   2          Lcd1602_WriteDC(' ',1);
+ 207   2          switch(keyscanner()){
+ 208   3                case 0:       numberKey(0);       break;
+ 209   3                case 1:       numberKey(1);       break;
+ 210   3                case 2:       numberKey(2);       break;      
+ 211   3                case 3:       numberKey(3);       break;
+ 212   3                case 4:       numberKey(4);       break;
+ 213   3                case 5:       numberKey(5);       break;
+ 214   3                case 6:       numberKey(6);       break;
+ 215   3                case 7:       numberKey(7);       break;
+ 216   3                case 8:       numberKey(8);       break;
+ 217   3                case 9:       numberKey(9);       break;
+ 218   3                case 10:      key10();        break;    //
+ 219   3                case 11:      key11();        break;    //
+ 220   3                case 12:      key12();        break;
+ 221   3                case 13:      key13();        break;
+ 222   3                case 14:      key14();        break;    //
+ 223   3                case 15:      key15();        break;     //
+ 224   3            }
+ 225   2          
+ 226   2            switch(D){
+ 227   3              case 20:V=12;break;
+ 228   3              case 21:V=14;break;
+ 229   3              case 22:V=15;break;
+ 230   3              case 23:V=16;break;
+ 231   3              case 24:V=17;break;
+ 232   3              case 25:V=20;break;
+ 233   3              case 26:V=22;break;
+ 234   3              case 27:V=26;break;
+ 235   3              case 28:V=28;break;
+ 236   3              case 29:V=31;break;
+ 237   3              case 30:V=33;break;   
+ 238   3              default:V=0;break;
+ 239   3            }
+ 240   2          vertical_change(V);  //调整垂直舵机
+C51 COMPILER V9.59.0.0   MAIN                                                              08/11/2019 04:16:06 PAGE 5   
+
+ 241   2          horizontal_change(H);//调整水平舵机
+ 242   2          delay_ms(100);
+ 243   2          }
+ 244   1      return;
+ 245   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2318    ----
+   CONSTANT SIZE    =     69    ----
+   XDATA SIZE       =     16       5
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

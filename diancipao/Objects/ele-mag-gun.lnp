@@ -1,0 +1,3 @@
+".\Objects\main.obj" 
+TO ".\Objects\ele-mag-gun" 
+PRINT(".\Listings\ele-mag-gun.m51") RAMSIZE(256) 
